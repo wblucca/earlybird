@@ -69,7 +69,7 @@ sub _APIRequest {
 	return decode_json(`$curlcmd`);
 }
 
-sub _GetAPIData {
+sub _APIData {
 	my ($self, $args) = @_;
 
 	my $response;
@@ -105,7 +105,7 @@ sub InitSession {
 
 sub InitLocations {
 	my $self = shift;
-	return $self->_GetAPIData({
+	return $self->_APIData({
 		METHOD => 'GET',
 		ROUTE => 'organizations/' . $self->organizationid . '/locations',
 	});
@@ -114,7 +114,7 @@ sub InitLocations {
 sub GetSpaces {
 	my ($self, $args) = @_;
 
-	return $self->_GetAPIData({
+	return $self->_APIData({
 		METHOD => 'GET',
 		ROUTE => "locations/$args->{LOCATIONID}/spaces",
 	});
@@ -123,7 +123,7 @@ sub GetSpaces {
 sub GetSeats {
 	my ($self, $args) = @_;
 
-	return $self->_GetAPIData({
+	return $self->_APIData({
 		METHOD => 'GET',
 		ROUTE => "spaces/$args->{SPACEID}/seats",
 	});
