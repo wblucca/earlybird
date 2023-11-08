@@ -43,8 +43,8 @@ around BUILDARGS => sub {
 
 	if (@_ == 2) {
 		return $class->$orig(
-			basic_token => $_[0],
-			organization_id => $_[1],
+			basictoken => $_[0],
+			organizationid => $_[1],
 		);
 	}
 	else {
@@ -96,7 +96,7 @@ sub InitSession {
 	my $data = $self->_APIRequest({
 		METHOD => 'POST',
 		ROUTE => 'auth/users',
-		AUTH => $self->basic_token,
+		AUTH => $self->basictoken,
 	})->{data};
 
 	# Just get the important stuff
@@ -107,7 +107,7 @@ sub InitLocations {
 	my $self = shift;
 	return $self->_GetAPIData({
 		METHOD => 'GET',
-		ROUTE => 'organizations/' . $self->organization_id . '/locations',
+		ROUTE => 'organizations/' . $self->organizationid . '/locations',
 	});
 }
 
@@ -127,6 +127,25 @@ sub GetSeats {
 		METHOD => 'GET',
 		ROUTE => "spaces/$args->{SPACEID}/seats",
 	});
+}
+
+sub GetAllSeats {
+	my ($self, $args) = @_;
+
+	# First get all of the spaces in the location
+	my $allspaces = $self->GetSpaces($args);
+
+	my @seats;
+	for my $space (@$allspaces) {
+		# If a space has seat booking, the 'seats' behavior will exist
+		if (grep { $_ eq 'seats' } @{ $space->{behaviors} }) {
+			push @seats, @{ $self->GetSeats({
+				SPACEID => $space->{id},
+			}) // [] };
+		}
+	}
+
+	return \@seats;
 }
 
 1;
