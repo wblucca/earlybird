@@ -111,4 +111,22 @@ sub _build_locations {
 	});
 }
 
+sub get_spaces {
+	my ($self, $args) = @_;
+
+	return $self->_paginated_api_request({
+		METHOD => 'GET',
+		ROUTE => "locations/$args->{LOCATIONID}/spaces",
+	});
+}
+
+sub get_seats {
+	my ($self, $args) = @_;
+
+	return $self->_paginated_api_request({
+		METHOD => 'GET',
+		ROUTE => "spaces/$args->{SPACEID}/seats",
+	});
+}
+
 1;
