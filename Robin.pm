@@ -37,20 +37,6 @@ has 'locations' => (
 	builder => '_build_locations',
 );
 
-# has 'spaces' => (
-# 	is => 'ro',
-# 	isa => 'ArrayRef',
-# 	lazy => 1,
-# 	builder => '_build_spaces',
-# );
-
-# has 'seats' => (
-# 	is => 'ro',
-# 	isa => 'ArrayRef',
-# 	lazy => 1,
-# 	builder => '_build_seats',
-# );
-
 around BUILDARGS => sub {
 	my $orig  = shift;
 	my $class = shift;
