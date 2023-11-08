@@ -53,7 +53,8 @@ around BUILDARGS => sub {
 };
 
 sub _api_request {
-	my ($self, $method, $route, $params, $auth) = @_;
+	my ($self, $args) = @_;
+	my ($method, $route, $params, $auth) = @{ $args }{qw( METHOD ROUTE PARAMS AUTH )};
 
 	# Create the `curl` command
 	my $curlcmd = sprintf('curl "%s/%s%s" --silent -H "Authorization: %s" -X %s',
@@ -68,8 +69,8 @@ sub _api_request {
 	return decode_json(`$curlcmd`);
 }
 
-sub _paginated_api_data {
-	my ($self, $method, $route, $params) = @_;
+sub _paginated_api_request {
+	my ($self, $args) = @_;
 
 	my $response;
 	my $page = 0;
@@ -78,11 +79,10 @@ sub _paginated_api_data {
 	do {
 		# Get just this page's data
 		$page++;
-		$response = $self->_api_request($method, $route, {
-			%{ $params // {} },
-			page => $page,
-			per_page => DATAPERPAGE(),
-		});
+		$args->{PARAMS}{page} = $page;
+		$args->{PARAMS}{per_page} = DATAPERPAGE();
+
+		$response = $self->_api_request($args);
 		push @$data, @{ $response->{data} };
 
 		# Then continue if there are more pages
@@ -93,7 +93,11 @@ sub _paginated_api_data {
 
 sub _build_session {
 	my $self = shift;
-	my $response = $self->_api_request('POST', 'auth/users', {}, $self->basic_token)->{data};
+	my $response = $self->_api_request({
+		METHOD => 'POST',
+		ROUTE => 'auth/users',
+		AUTH => $self->basic_token,
+	})->{data};
 
 	# Just get the important stuff
 	return { %{$response}{qw( account_id expire_at access_token )} };
@@ -101,10 +105,10 @@ sub _build_session {
 
 sub _build_locations {
 	my $self = shift;
-	return $self->_paginated_api_data(
-		'GET',
-		'organizations/' . $self->organization_id . '/locations',
-	);
+	return $self->_paginated_api_request({
+		METHOD => 'GET',
+		ROUTE => 'organizations/' . $self->organization_id . '/locations',
+	});
 }
 
 1;
