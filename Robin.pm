@@ -11,13 +11,13 @@ use constant {
 
 use JSON;
 
-has 'basic_token' => (
+has 'basictoken' => (
 	is => 'ro',
 	isa => 'Str',
 	required => 1,
 );
 
-has 'organization_id' => (
+has 'organizationid' => (
 	is => 'rw',
 	isa => 'Int',
 	required => 1,
@@ -27,14 +27,14 @@ has 'session' => (
 	is => 'ro',
 	isa => 'HashRef',
 	lazy => 1,
-	builder => '_build_session',
+	builder => 'InitSession',
 );
 
 has 'locations' => (
 	is => 'ro',
 	isa => 'ArrayRef',
 	lazy => 1,
-	builder => '_build_locations',
+	builder => 'InitLocations',
 );
 
 around BUILDARGS => sub {
@@ -52,7 +52,7 @@ around BUILDARGS => sub {
 	}
 };
 
-sub _api_request {
+sub _APIRequest {
 	my ($self, $args) = @_;
 	my ($method, $route, $params, $auth) = @{ $args }{qw( METHOD ROUTE PARAMS AUTH )};
 
@@ -69,7 +69,7 @@ sub _api_request {
 	return decode_json(`$curlcmd`);
 }
 
-sub _paginated_api_request {
+sub _GetAPIData {
 	my ($self, $args) = @_;
 
 	my $response;
@@ -82,7 +82,7 @@ sub _paginated_api_request {
 		$args->{PARAMS}{page} = $page;
 		$args->{PARAMS}{per_page} = DATAPERPAGE();
 
-		$response = $self->_api_request($args);
+		$response = $self->_APIRequest($args);
 		push @$data, @{ $response->{data} };
 
 		# Then continue if there are more pages
@@ -91,39 +91,39 @@ sub _paginated_api_request {
 	return $data;
 }
 
-sub _build_session {
+sub InitSession {
 	my $self = shift;
-	my $response = $self->_api_request({
+	my $data = $self->_APIRequest({
 		METHOD => 'POST',
 		ROUTE => 'auth/users',
 		AUTH => $self->basic_token,
 	})->{data};
 
 	# Just get the important stuff
-	return { %{$response}{qw( account_id expire_at access_token )} };
+	return { %{$data}{qw( account_id expire_at access_token )} };
 }
 
-sub _build_locations {
+sub InitLocations {
 	my $self = shift;
-	return $self->_paginated_api_request({
+	return $self->_GetAPIData({
 		METHOD => 'GET',
 		ROUTE => 'organizations/' . $self->organization_id . '/locations',
 	});
 }
 
-sub get_spaces {
+sub GetSpaces {
 	my ($self, $args) = @_;
 
-	return $self->_paginated_api_request({
+	return $self->_GetAPIData({
 		METHOD => 'GET',
 		ROUTE => "locations/$args->{LOCATIONID}/spaces",
 	});
 }
 
-sub get_seats {
+sub GetSeats {
 	my ($self, $args) = @_;
 
-	return $self->_paginated_api_request({
+	return $self->_GetAPIData({
 		METHOD => 'GET',
 		ROUTE => "spaces/$args->{SPACEID}/seats",
 	});
