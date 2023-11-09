@@ -11,6 +11,9 @@ use Robin;
 
 my $token = `cat ~/.robin/.token`;
 chomp $token;
-my $robinapp = Robin->new($token, ORGANIZATIONID());
+my $robinapp = Robin->new({
+	basictoken => $token,
+	organizationid => ORGANIZATIONID(),
+});
 
 
