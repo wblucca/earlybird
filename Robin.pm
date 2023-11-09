@@ -9,7 +9,11 @@ use constant {
 	DATAPERPAGE => 100,
 };
 
+use Data::Dumper;
 use JSON;
+
+local $Data::Dumper::Indent = 1;
+local $Data::Dumper::Terse = 1;
 
 has 'basictoken' => (
 	is => 'ro',
@@ -53,19 +57,34 @@ sub BUILD {
 
 sub _APIRequest {
 	my ($self, $args) = @_;
-	my ($method, $route, $params, $auth) = @{ $args }{qw( METHOD ROUTE PARAMS AUTH )};
+
+	# Create the request url
+	my $fullurl = sprintf('%s/%s%s',
+		APIURL(),
+		$args->{ROUTE},
+		$args->{PARAMS} ? '?' . join('&', map { "$_=$args->{PARAMS}{$_}" } keys %{ $args->{PARAMS} }) : '',
+	);
 
 	# Create the `curl` command
-	my $curlcmd = sprintf('curl "%s/%s%s" --silent -H "Authorization: %s" -X %s',
-		APIURL(),
-		$route,
-		$params ? '?' . join('&', map { "$_=$params->{$_}" } keys %$params) : '',
-		$auth ? "Basic $auth" : ('Access-Token ' . $self->accesstoken),
-		$method,
+	my $curlcmd = sprintf('curl %s --silent -H "Authorization: %s" -X %s %s',
+		$fullurl,
+		$args->{AUTH} // ('Access-Token ' . $self->session->{access_token}),
+		$args->{METHOD},
+		$args->{BODY} ? "-d $args->{BODY}" : '',
 	);
 
 	# Return the body of the response, decoded so we can use it in perl
-	return decode_json(`$curlcmd`);
+	my $response decode_json(`$curlcmd`);
+
+	# Die if the API responds with anything other than a 200 OK
+	if ($response->{meta}{code} != 200) {
+		die sprintf(
+			"Error during $args->{METHOD} $fullurl:\n%s",
+			Dumper($response->{meta}),
+		);
+	}
+
+	return $response;
 }
 
 sub _APIData {
