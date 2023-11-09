@@ -29,12 +29,12 @@ has 'organizationid' => (
 	required => 1,
 );
 
-# has 'session' => (
-# 	is => 'ro',
-# 	isa => 'HashRef',
-# 	lazy => 1,
-# 	builder => 'InitSession',
-# );
+has 'user' => (
+	is => 'ro',
+	isa => 'HashRef',
+	lazy => 1,
+	builder => 'InitUser',
+);
 
 has 'locations' => (
 	is => 'ro',
@@ -46,7 +46,8 @@ has 'locations' => (
 sub BUILD {
 	my $self  = shift;
 
-	if ($self->accesstoken) {
+	if (!%{ $self->user }) {
+		die("Failed to connect to Robin\n");
 	}
 };
 
@@ -59,7 +60,7 @@ sub _APIRequest {
 		APIURL(),
 		$route,
 		$params ? '?' . join('&', map { "$_=$params->{$_}" } keys %$params) : '',
-		$auth ? "Basic $auth" : ('Access-Token ' . $self->session->{access_token}),
+		$auth ? "Basic $auth" : ('Access-Token ' . $self->accesstoken),
 		$method,
 	);
 
@@ -101,6 +102,15 @@ sub InitAccessToken {
 		ROUTE => 'auth/users',
 		AUTH => $self->basictoken,
 	})->{data}{access_token};
+}
+
+sub InitUser {
+	my $self = shift;
+
+	return $self->_APIRequest({
+		METHOD => 'GET',
+		ROUTE => 'me',
+	})->{data};
 }
 
 sub InitLocations {
