@@ -177,4 +177,33 @@ sub GetAllSeats {
 	return \@seats;
 }
 
+sub ReserveSeat {
+	my ($self, $args) = @_;
+
+	# Create the details for the reservation
+	my $reservation = {
+		type => 'hoteled',
+		start => {
+			date_time => $args->{START},
+			time_zone => $args->{TIMEZONE},
+		},
+		end => {
+			date_time => $args->{END},
+			time_zone => $args->{TIMEZONE},
+		},
+		reservee => {
+			user_id => $self->session->{account_id},
+		},
+	};
+
+	# POST the reservation
+	my $response = $self->_APIRequest({
+		METHOD => 'POST',
+		ROUTE => "seats/$args->{SEATID}/reservations",
+		BODY => encode_json($reservation),
+	});
+
+	return $response->{data};
+}
+
 1;
