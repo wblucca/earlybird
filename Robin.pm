@@ -14,20 +14,26 @@ use JSON;
 has 'basictoken' => (
 	is => 'ro',
 	isa => 'Str',
-	required => 1,
+);
+
+has 'accesstoken' => (
+	is => 'ro',
+	isa => 'Str',
+	lazy => 1,
+	builder => 'InitAccessToken',
 );
 
 has 'organizationid' => (
-	is => 'rw',
+	is => 'ro',
 	isa => 'Int',
 	required => 1,
 );
 
-has 'session' => (
+has 'user' => (
 	is => 'ro',
 	isa => 'HashRef',
 	lazy => 1,
-	builder => 'InitSession',
+	builder => 'InitUser',
 );
 
 has 'locations' => (
@@ -37,18 +43,11 @@ has 'locations' => (
 	builder => 'InitLocations',
 );
 
-around BUILDARGS => sub {
-	my $orig  = shift;
-	my $class = shift;
+sub BUILD {
+	my $self  = shift;
 
-	if (@_ == 2) {
-		return $class->$orig(
-			basictoken => $_[0],
-			organizationid => $_[1],
-		);
-	}
-	else {
-		return $class->$orig(@_);
+	if (!%{ $self->user }) {
+		die("Failed to connect to Robin\n");
 	}
 };
 
@@ -61,7 +60,7 @@ sub _APIRequest {
 		APIURL(),
 		$route,
 		$params ? '?' . join('&', map { "$_=$params->{$_}" } keys %$params) : '',
-		$auth ? "Basic $auth" : ('Access-Token ' . $self->session->{access_token}),
+		$auth ? "Basic $auth" : ('Access-Token ' . $self->accesstoken),
 		$method,
 	);
 
@@ -91,16 +90,27 @@ sub _APIData {
 	return $data;
 }
 
-sub InitSession {
+sub InitAccessToken {
 	my $self = shift;
-	my $data = $self->_APIRequest({
+
+	if (!$self->basictoken) {
+		die("An `accesstoken` or `basictoken` is required to authenticate with Robin\n");
+	}
+
+	return $self->_APIRequest({
 		METHOD => 'POST',
 		ROUTE => 'auth/users',
 		AUTH => $self->basictoken,
-	})->{data};
+	})->{data}{access_token};
+}
 
-	# Just get the important stuff
-	return { %{$data}{qw( account_id expire_at access_token )} };
+sub InitUser {
+	my $self = shift;
+
+	return $self->_APIRequest({
+		METHOD => 'GET',
+		ROUTE => 'me',
+	})->{data};
 }
 
 sub InitLocations {
