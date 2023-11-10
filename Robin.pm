@@ -192,7 +192,7 @@ sub ReserveSeat {
 			time_zone => $args->{TIMEZONE},
 		},
 		reservee => {
-			user_id => $self->session->{account_id},
+			user_id => $self->user->{id},
 		},
 	};
 
