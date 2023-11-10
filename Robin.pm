@@ -66,18 +66,18 @@ sub _APIRequest {
 	);
 
 	# Create the `curl` command
-	my $curlcmd = sprintf('curl %s --silent -H "Authorization: %s" -X %s %s',
+	my $curlcmd = sprintf('curl "%s" --silent -H "Authorization: %s" -X %s %s',
 		$fullurl,
-		$args->{AUTH} // ('Access-Token ' . $self->session->{access_token}),
+		$args->{AUTH} // ('Access-Token ' . $self->accesstoken),
 		$args->{METHOD},
 		$args->{BODY} ? "-d $args->{BODY}" : '',
 	);
 
 	# Return the body of the response, decoded so we can use it in perl
-	my $response decode_json(`$curlcmd`);
+	my $response = decode_json(`$curlcmd`);
 
 	# Die if the API responds with anything other than a 200 OK
-	if ($response->{meta}{code} != 200) {
+	if ($response->{meta}{status_code} != 200) {
 		die sprintf(
 			"Error during $args->{METHOD} $fullurl:\n%s",
 			Dumper($response->{meta}),
@@ -119,7 +119,7 @@ sub InitAccessToken {
 	return $self->_APIRequest({
 		METHOD => 'POST',
 		ROUTE => 'auth/users',
-		AUTH => $self->basictoken,
+		AUTH => 'Basic ' . $self->basictoken,
 	})->{data}{access_token};
 }
 
