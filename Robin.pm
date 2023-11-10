@@ -177,6 +177,40 @@ sub GetAllSeats {
 	return \@seats;
 }
 
+sub GetReservation {
+	my ($self, $args) = @_;
+	
+	return $self->_APIRequest({
+		METHOD => 'GET',
+		ROUTE => "reservations/seats/$args->{ID}",
+	})->{data};
+}
+
+sub GetReservations {
+	my ($self, $args) = @_;
+	
+	return $self->_APIRequestAllPages({
+		METHOD => 'GET',
+		ROUTE => "reservations/seats",
+		PARAMS => {
+			%$args,
+			include_disabled_seats => ($args->{include_disabled_seats} ? 'true' : 'false'),
+			(map {
+				$_ => join(',', @{ $args->{$_} })
+			} grep {
+				scalar @{ $args->{$_} // [] }
+			} qw(
+				level_ids
+				space_ids
+				zone_ids
+				seat_ids
+				user_ids
+				types
+			)),
+		},
+	});
+}
+
 sub ReserveSeat {
 	my ($self, $args) = @_;
 
