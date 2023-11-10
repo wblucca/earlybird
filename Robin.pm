@@ -12,8 +12,8 @@ use constant {
 use Data::Dumper;
 use JSON;
 
-local $Data::Dumper::Indent = 1;
-local $Data::Dumper::Terse = 1;
+$Data::Dumper::Indent = 1;
+$Data::Dumper::Terse = 1;
 
 has 'basictoken' => (
 	is => 'ro',
@@ -61,16 +61,16 @@ sub _APIRequest {
 	# Create the request url
 	my $fullurl = sprintf('%s/%s%s',
 		APIURL(),
-		$args->{ROUTE},
-		$args->{PARAMS} ? '?' . join('&', map { "$_=$args->{PARAMS}{$_}" } keys %{ $args->{PARAMS} }) : '',
+		$args->{route},
+		$args->{params} ? '?' . join('&', map { "$_=$args->{params}{$_}" } keys %{ $args->{params} }) : '',
 	);
 
 	# Create the `curl` command
 	my $curlcmd = sprintf('curl "%s" --silent -H "Authorization: %s" -X %s %s',
 		$fullurl,
-		$args->{AUTH} // ('Access-Token ' . $self->accesstoken),
-		$args->{METHOD},
-		$args->{BODY} ? "-d $args->{BODY}" : '',
+		$args->{auth} // ('Access-Token ' . $self->accesstoken),
+		$args->{method},
+		$args->{body} ? "-d $args->{body}" : '',
 	);
 
 	# Return the body of the response, decoded so we can use it in perl
@@ -79,7 +79,7 @@ sub _APIRequest {
 	# Die if the API responds with anything other than a 200 OK
 	if ($response->{meta}{status_code} != 200) {
 		die sprintf(
-			"Error during $args->{METHOD} $fullurl:\n%s",
+			"Error during $args->{method} $fullurl:\n%s",
 			Dumper($response->{meta}),
 		);
 	}
@@ -97,8 +97,8 @@ sub _APIRequestAllPages {
 	do {
 		# Get just this page's data
 		$page++;
-		$args->{PARAMS}{page} = $page;
-		$args->{PARAMS}{per_page} = DATAPERPAGE();
+		$args->{params}{page} = $page;
+		$args->{params}{per_page} = DATAPERPAGE();
 
 		$response = $self->_APIRequest($args);
 		push @$data, @{ $response->{data} };
@@ -117,9 +117,9 @@ sub InitAccessToken {
 	}
 
 	return $self->_APIRequest({
-		METHOD => 'POST',
-		ROUTE => 'auth/users',
-		AUTH => 'Basic ' . $self->basictoken,
+		method => 'POST',
+		route => 'auth/users',
+		auth => 'Basic ' . $self->basictoken,
 	})->{data}{access_token};
 }
 
@@ -127,16 +127,16 @@ sub InitUser {
 	my $self = shift;
 
 	return $self->_APIRequest({
-		METHOD => 'GET',
-		ROUTE => 'me',
+		method => 'GET',
+		route => 'me',
 	})->{data};
 }
 
 sub InitLocations {
 	my $self = shift;
 	return $self->_APIRequestAllPages({
-		METHOD => 'GET',
-		ROUTE => 'organizations/' . $self->organizationid . '/locations',
+		method => 'GET',
+		route => 'organizations/' . $self->organizationid . '/locations',
 	});
 }
 
@@ -144,8 +144,8 @@ sub GetSpaces {
 	my ($self, $args) = @_;
 
 	return $self->_APIRequestAllPages({
-		METHOD => 'GET',
-		ROUTE => "locations/$args->{LOCATIONID}/spaces",
+		method => 'GET',
+		route => "locations/$args->{locationid}/spaces",
 	});
 }
 
@@ -153,8 +153,8 @@ sub GetSeats {
 	my ($self, $args) = @_;
 
 	return $self->_APIRequestAllPages({
-		METHOD => 'GET',
-		ROUTE => "spaces/$args->{SPACEID}/seats",
+		method => 'GET',
+		route => "spaces/$args->{spaceid}/seats",
 	});
 }
 
@@ -169,7 +169,7 @@ sub GetAllSeats {
 		# If a space has seat booking, the 'seats' behavior will exist
 		if (grep { $_ eq 'seats' } @{ $space->{behaviors} }) {
 			push @seats, @{ $self->GetSeats({
-				SPACEID => $space->{id},
+				spaceid => $space->{id},
 			}) // [] };
 		}
 	}
@@ -181,8 +181,8 @@ sub GetReservation {
 	my ($self, $args) = @_;
 	
 	return $self->_APIRequest({
-		METHOD => 'GET',
-		ROUTE => "reservations/seats/$args->{ID}",
+		method => 'GET',
+		route => "reservations/seats/$args->{id}",
 	})->{data};
 }
 
@@ -190,9 +190,9 @@ sub GetReservations {
 	my ($self, $args) = @_;
 	
 	return $self->_APIRequestAllPages({
-		METHOD => 'GET',
-		ROUTE => "reservations/seats",
-		PARAMS => {
+		method => 'GET',
+		route => "reservations/seats",
+		params => {
 			%$args,
 			include_disabled_seats => ($args->{include_disabled_seats} ? 'true' : 'false'),
 			(map {
@@ -218,12 +218,12 @@ sub ReserveSeat {
 	my $reservation = {
 		type => 'hoteled',
 		start => {
-			date_time => $args->{START},
-			time_zone => $args->{TIMEZONE},
+			date_time => $args->{start},
+			time_zone => $args->{timezone},
 		},
 		end => {
-			date_time => $args->{END},
-			time_zone => $args->{TIMEZONE},
+			date_time => $args->{end},
+			time_zone => $args->{timezone},
 		},
 		reservee => {
 			user_id => $self->user->{id},
@@ -232,9 +232,9 @@ sub ReserveSeat {
 
 	# POST the reservation
 	my $response = $self->_APIRequest({
-		METHOD => 'POST',
-		ROUTE => "seats/$args->{SEATID}/reservations",
-		BODY => encode_json($reservation),
+		method => 'POST',
+		route => "seats/$args->{seatid}/reservations",
+		body => encode_json($reservation),
 	});
 
 	return $response->{data};
