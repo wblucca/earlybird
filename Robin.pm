@@ -87,7 +87,7 @@ sub _APIRequest {
 	return $response;
 }
 
-sub _APIData {
+sub _APIRequestAllPages {
 	my ($self, $args) = @_;
 
 	my $response;
@@ -134,7 +134,7 @@ sub InitUser {
 
 sub InitLocations {
 	my $self = shift;
-	return $self->_APIData({
+	return $self->_APIRequestAllPages({
 		METHOD => 'GET',
 		ROUTE => 'organizations/' . $self->organizationid . '/locations',
 	});
@@ -143,7 +143,7 @@ sub InitLocations {
 sub GetSpaces {
 	my ($self, $args) = @_;
 
-	return $self->_APIData({
+	return $self->_APIRequestAllPages({
 		METHOD => 'GET',
 		ROUTE => "locations/$args->{LOCATIONID}/spaces",
 	});
@@ -152,7 +152,7 @@ sub GetSpaces {
 sub GetSeats {
 	my ($self, $args) = @_;
 
-	return $self->_APIData({
+	return $self->_APIRequestAllPages({
 		METHOD => 'GET',
 		ROUTE => "spaces/$args->{SPACEID}/seats",
 	});
