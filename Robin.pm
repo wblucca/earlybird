@@ -12,8 +12,6 @@ use constant {
 use Data::Dumper;
 use JSON;
 
-$Data::Dumper::Indent = 1;
-$Data::Dumper::Terse = 1;
 
 has 'basictoken' => (
 	is => 'ro',
@@ -78,6 +76,8 @@ sub _APIRequest {
 
 	# Die if the API responds with anything other than a 200 OK
 	if ($response->{meta}{status_code} != 200) {
+		local $Data::Dumper::Terse = 1;
+		local $Data::Dumper::Indent = 1;
 		die sprintf(
 			"Error during $args->{method} $fullurl:\n%s",
 			Dumper($response->{meta}),
