@@ -11,6 +11,7 @@ use constant {
 
 use Data::Dumper;
 use JSON;
+use Try::Tiny;
 
 
 has 'basictoken' => (
@@ -238,6 +239,32 @@ sub ReserveSeat {
 	});
 
 	return $response->{data};
+}
+
+sub UpdateReservation {
+	my ($self, $args) = @_;
+
+	# Find the existing reservation
+	my $id = delete $args->{id};
+	my $reservation;
+	try {
+		$reservation = $self->GetReservation({ id => $id });
+	}
+	catch {
+		die "No reservation found: $_\n";
+	};
+
+	# If we found it, make the updates
+	my $response;
+	if ($reservation && %$args) {
+		$response = $self->_APIRequest({
+			method => 'PATCH',
+			route => "reservations/seats/$id",
+			body => encode_json($args),
+		});
+	}
+
+	return defined $response;
 }
 
 1;
