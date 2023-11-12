@@ -9,7 +9,10 @@ use constant {
 	DATAPERPAGE => 100,
 };
 
+use Data::Dumper;
 use JSON;
+use Try::Tiny;
+
 
 has 'basictoken' => (
 	is => 'ro',
@@ -53,22 +56,39 @@ sub BUILD {
 
 sub _APIRequest {
 	my ($self, $args) = @_;
-	my ($method, $route, $params, $auth) = @{ $args }{qw( METHOD ROUTE PARAMS AUTH )};
+
+	# Create the request url
+	my $fullurl = sprintf('%s/%s%s',
+		APIURL(),
+		$args->{route},
+		$args->{params} ? '?' . join('&', map { "$_=$args->{params}{$_}" } keys %{ $args->{params} }) : '',
+	);
 
 	# Create the `curl` command
-	my $curlcmd = sprintf('curl "%s/%s%s" --silent -H "Authorization: %s" -X %s',
-		APIURL(),
-		$route,
-		$params ? '?' . join('&', map { "$_=$params->{$_}" } keys %$params) : '',
-		$auth ? "Basic $auth" : ('Access-Token ' . $self->accesstoken),
-		$method,
+	my $curlcmd = sprintf('curl "%s" --silent -H "Authorization: %s" -X %s %s',
+		$fullurl,
+		$args->{auth} // ('Access-Token ' . $self->accesstoken),
+		$args->{method},
+		$args->{body} ? "-d $args->{body}" : '',
 	);
 
 	# Return the body of the response, decoded so we can use it in perl
-	return decode_json(`$curlcmd`);
+	my $response = decode_json(`$curlcmd`);
+
+	# Die if the API responds with anything other than a 200 OK
+	if ($response->{meta}{status_code} != 200) {
+		local $Data::Dumper::Terse = 1;
+		local $Data::Dumper::Indent = 1;
+		die sprintf(
+			"Error during $args->{method} $fullurl:\n%s",
+			Dumper($response->{meta}),
+		);
+	}
+
+	return $response;
 }
 
-sub _APIData {
+sub _APIRequestAllPages {
 	my ($self, $args) = @_;
 
 	my $response;
@@ -78,8 +98,8 @@ sub _APIData {
 	do {
 		# Get just this page's data
 		$page++;
-		$args->{PARAMS}{page} = $page;
-		$args->{PARAMS}{per_page} = DATAPERPAGE();
+		$args->{params}{page} = $page;
+		$args->{params}{per_page} = DATAPERPAGE();
 
 		$response = $self->_APIRequest($args);
 		push @$data, @{ $response->{data} };
@@ -98,9 +118,9 @@ sub InitAccessToken {
 	}
 
 	return $self->_APIRequest({
-		METHOD => 'POST',
-		ROUTE => 'auth/users',
-		AUTH => $self->basictoken,
+		method => 'POST',
+		route => 'auth/users',
+		auth => 'Basic ' . $self->basictoken,
 	})->{data}{access_token};
 }
 
@@ -108,34 +128,34 @@ sub InitUser {
 	my $self = shift;
 
 	return $self->_APIRequest({
-		METHOD => 'GET',
-		ROUTE => 'me',
+		method => 'GET',
+		route => 'me',
 	})->{data};
 }
 
 sub InitLocations {
 	my $self = shift;
-	return $self->_APIData({
-		METHOD => 'GET',
-		ROUTE => 'organizations/' . $self->organizationid . '/locations',
+	return $self->_APIRequestAllPages({
+		method => 'GET',
+		route => 'organizations/' . $self->organizationid . '/locations',
 	});
 }
 
 sub GetSpaces {
 	my ($self, $args) = @_;
 
-	return $self->_APIData({
-		METHOD => 'GET',
-		ROUTE => "locations/$args->{LOCATIONID}/spaces",
+	return $self->_APIRequestAllPages({
+		method => 'GET',
+		route => "locations/$args->{locationid}/spaces",
 	});
 }
 
 sub GetSeats {
 	my ($self, $args) = @_;
 
-	return $self->_APIData({
-		METHOD => 'GET',
-		ROUTE => "spaces/$args->{SPACEID}/seats",
+	return $self->_APIRequestAllPages({
+		method => 'GET',
+		route => "spaces/$args->{spaceid}/seats",
 	});
 }
 
@@ -150,12 +170,101 @@ sub GetAllSeats {
 		# If a space has seat booking, the 'seats' behavior will exist
 		if (grep { $_ eq 'seats' } @{ $space->{behaviors} }) {
 			push @seats, @{ $self->GetSeats({
-				SPACEID => $space->{id},
+				spaceid => $space->{id},
 			}) // [] };
 		}
 	}
 
 	return \@seats;
+}
+
+sub GetReservation {
+	my ($self, $args) = @_;
+	
+	return $self->_APIRequest({
+		method => 'GET',
+		route => "reservations/seats/$args->{id}",
+	})->{data};
+}
+
+sub GetReservations {
+	my ($self, $args) = @_;
+	
+	return $self->_APIRequestAllPages({
+		method => 'GET',
+		route => "reservations/seats",
+		params => {
+			%$args,
+			include_disabled_seats => ($args->{include_disabled_seats} ? 'true' : 'false'),
+			(map {
+				$_ => join(',', @{ $args->{$_} })
+			} grep {
+				scalar @{ $args->{$_} // [] }
+			} qw(
+				level_ids
+				space_ids
+				zone_ids
+				seat_ids
+				user_ids
+				types
+			)),
+		},
+	});
+}
+
+sub ReserveSeat {
+	my ($self, $args) = @_;
+
+	# Create the details for the reservation
+	my $reservation = {
+		type => 'hoteled',
+		start => {
+			date_time => $args->{start},
+			time_zone => $args->{timezone},
+		},
+		end => {
+			date_time => $args->{end},
+			time_zone => $args->{timezone},
+		},
+		reservee => {
+			user_id => $self->user->{id},
+		},
+	};
+
+	# POST the reservation
+	my $response = $self->_APIRequest({
+		method => 'POST',
+		route => "seats/$args->{seatid}/reservations",
+		body => encode_json($reservation),
+	});
+
+	return $response->{data};
+}
+
+sub UpdateReservation {
+	my ($self, $args) = @_;
+
+	# Find the existing reservation
+	my $id = delete $args->{id};
+	my $reservation;
+	try {
+		$reservation = $self->GetReservation({ id => $id });
+	}
+	catch {
+		die "No reservation found: $_\n";
+	};
+
+	# If we found it, make the updates
+	my $response;
+	if ($reservation && %$args) {
+		$response = $self->_APIRequest({
+			method => 'PATCH',
+			route => "reservations/seats/$id",
+			body => encode_json($args),
+		});
+	}
+
+	return defined $response;
 }
 
 1;
